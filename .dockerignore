@@ -1,0 +1,8 @@
+.git
+*.tar.gz
+*.tar.bz2
+downloads/
+build/
+*.log
+.DS_Store
+README.md

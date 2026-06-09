@@ -1,0 +1,7 @@
+# build artifacts / downloads
+*.tar.gz
+*.tar.bz2
+downloads/
+build/
+*.log
+.DS_Store

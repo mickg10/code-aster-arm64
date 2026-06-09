@@ -1,0 +1,47 @@
+DEBUT(LANG="EN")
+
+# Minimal linear-static verification: a single axial bar element.
+# Analytical tip displacement u = F*L / (E*A) = 1000 * 1 / (2e11 * 0.01) = 5e-7 m.
+
+mesh = LIRE_MAILLAGE(FORMAT="ASTER", UNITE=20)
+
+model = AFFE_MODELE(
+    MAILLAGE=mesh,
+    AFFE=_F(TOUT="OUI", PHENOMENE="MECANIQUE", MODELISATION="BARRE"),
+)
+
+steel = DEFI_MATERIAU(ELAS=_F(E=2.0e11, NU=0.3))
+
+fmat = AFFE_MATERIAU(MAILLAGE=mesh, AFFE=_F(TOUT="OUI", MATER=steel))
+
+cara = AFFE_CARA_ELEM(
+    MODELE=model,
+    BARRE=_F(GROUP_MA="BAR", SECTION="GENERALE", CARA="A", VALE=0.01),
+)
+
+bc = AFFE_CHAR_MECA(
+    MODELE=model,
+    DDL_IMPO=(
+        _F(GROUP_NO="ENCAS", DX=0.0, DY=0.0, DZ=0.0),
+        _F(GROUP_NO="LIBRE", DY=0.0, DZ=0.0),
+    ),
+    FORCE_NODALE=_F(GROUP_NO="LIBRE", FX=1000.0),
+)
+
+res = MECA_STATIQUE(MODELE=model, CHAM_MATER=fmat, CARA_ELEM=cara, EXCIT=_F(CHARGE=bc))
+
+TEST_RESU(
+    RESU=_F(
+        RESULTAT=res,
+        NUME_ORDRE=1,
+        GROUP_NO="LIBRE",
+        NOM_CHAM="DEPL",
+        NOM_CMP="DX",
+        VALE_CALC=5.0e-07,
+        VALE_REFE=5.0e-07,
+        REFERENCE="ANALYTIQUE",
+        PRECISION=1.0e-6,
+    )
+)
+
+FIN()

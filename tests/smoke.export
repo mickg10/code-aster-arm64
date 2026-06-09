@@ -1,0 +1,6 @@
+P actions make_etude
+P version stable
+P time_limit 120
+F comm smoke.comm D 1
+F libr smoke.mail D 20
+F mess smoke.mess R 6
