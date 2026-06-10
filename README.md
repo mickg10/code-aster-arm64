@@ -45,6 +45,58 @@ docker run --rm -v "$PWD:/work" -w /work \
   run_aster mystudy.export
 ```
 
+## Using the image as a script / CLI
+
+The image has an entrypoint that loads the code_aster environment and then runs
+whatever command you pass, so you can treat it like the `run_aster` executable.
+It also defaults the CPU thread count to the cores available to the container.
+
+**Run a study from the current directory** (mount it, then point `run_aster` at
+your `.export`):
+
+```bash
+docker run --rm -v "$PWD:/work" -w /work \
+  ghcr.io/mickg10/code-aster-arm64:latest run_aster study.export
+```
+
+**Make a reusable wrapper** so `code_aster` feels like a local command — drop
+this in `~/bin/code_aster` and `chmod +x` it:
+
+```bash
+#!/usr/bin/env bash
+# Usage: code_aster study.export        (run from the study's directory)
+exec docker run --rm -v "$PWD:/work" -w /work \
+  ghcr.io/mickg10/code-aster-arm64:latest run_aster "$@"
+```
+
+Then: `cd my_study && code_aster study.export`.
+
+**Run a Python study directly** (no `.export` needed):
+
+```bash
+docker run --rm -v "$PWD:/work" -w /work \
+  ghcr.io/mickg10/code-aster-arm64:latest run_aster study.py
+```
+
+**Control CPU threads** (defaults to all cores the container sees):
+
+```bash
+docker run --rm -e OMP_NUM_THREADS=4 -v "$PWD:/work" -w /work \
+  ghcr.io/mickg10/code-aster-arm64:latest run_aster study.export
+```
+
+**Pipe a quick command / inspect interactively:**
+
+```bash
+docker run --rm ghcr.io/mickg10/code-aster-arm64:latest run_aster --version
+docker run --rm -it ghcr.io/mickg10/code-aster-arm64:latest      # shell
+```
+
+> The container runs as the non-root user `aster`. Output files are written into
+> the mounted `/work` directory; on Linux hosts add `--user "$(id -u):$(id -g)"`
+> if you need them owned by your host user (not needed on Docker Desktop/Colima
+> for macOS, which maps ownership automatically).
+
 ## Building locally
 
 Requires a **native arm64 Docker engine** (Apple Silicon with Docker Desktop or

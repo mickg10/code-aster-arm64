@@ -110,19 +110,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV LANG=en_US.UTF-8
 
 COPY --from=build /opt/aster /opt/aster
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-# Auto-source the code_aster + prerequisites environment for every shell.
-RUN printf '%s\n' \
+# Also auto-source the environment for interactive login shells (e.g. exec'ing
+# into a running container), in addition to the entrypoint.
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
+    && printf '%s\n' \
       '# code_aster environment' \
       '. /opt/aster/prerequisites/env_std.sh 2>/dev/null || true' \
       'export PATH=/opt/aster/install/seq/bin:$PATH' \
-      > /etc/profile.d/aster.sh \
-    && ln -sf /opt/aster/install/seq/bin/run_aster /usr/local/bin/run_aster
+      > /etc/profile.d/aster.sh
 
 # Non-root user.
 RUN useradd -ms /bin/bash aster
 USER aster
 WORKDIR /home/aster
 
-SHELL ["/bin/bash", "-lc"]
+# The entrypoint loads the environment and sets thread defaults, then runs the
+# given command (default: an interactive shell). Override threads with
+#   -e OMP_NUM_THREADS=N
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["bash", "-l"]
