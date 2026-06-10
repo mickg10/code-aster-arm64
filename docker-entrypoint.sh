@@ -10,7 +10,7 @@
 set -e
 
 . /opt/aster/prerequisites/env_std.sh 2>/dev/null || true
-export PATH=/opt/aster/install/seq/bin:$PATH
+export PATH=/opt/aster/install/seq/bin:/opt/gmsh/bin:$PATH
 
 # CPU threading (OpenBLAS + MUMPS OpenMP). Respect user-provided values.
 : "${OMP_NUM_THREADS:=$(nproc)}"

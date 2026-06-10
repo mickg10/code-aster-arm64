@@ -15,6 +15,7 @@ FROM debian:bookworm AS build
 ARG PREREQ_VERSION=20251026
 ARG ASTER_TAG=17.4.18
 ARG ARCH=gcc-openblas-seq
+ARG GMSH_VERSION=4.13.1
 ARG PREREQ_URL=https://gitlab.com/api/v4/projects/codeaster-opensource-documentation%2Fopensource-installation-development/packages/generic/codeaster-prerequisites/${PREREQ_VERSION}/codeaster-prerequisites-${PREREQ_VERSION}-oss.tar.gz
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -91,6 +92,29 @@ RUN git clone --depth 1 --branch "${ASTER_TAG}" https://gitlab.com/codeaster/src
     && ./waf_std configure --prefix=/opt/aster/install/seq --without-repo \
     && ./waf_std install -j "$(nproc)"
 
+# --- 3. gmsh (native arm64) built from source with MED + OpenCASCADE.
+# Debian's gmsh package is compiled WITHOUT MED support, and there is no arm64
+# PyPI wheel, so build it ourselves — linked against the SAME MED/HDF5 the solver
+# uses, so meshes written here are byte-compatible with what code_aster reads.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libocct-foundation-dev libocct-modeling-data-dev \
+        libocct-modeling-algorithms-dev libocct-data-exchange-dev \
+        libocct-ocaf-dev libgmp-dev \
+    && rm -rf /var/lib/apt/lists/*
+RUN D="/opt/aster/prerequisites/${PREREQ_VERSION}/${ARCH}" \
+    && MED_DIR="$(ls -d ${D}/med-*/ | head -1)" \
+    && HDF5_DIR="$(ls -d ${D}/hdf5-*/ | head -1)" \
+    && curl -fSL "https://gmsh.info/src/gmsh-${GMSH_VERSION}-source.tgz" -o /tmp/gmsh.tgz \
+    && mkdir -p /tmp/gmsh && tar xzf /tmp/gmsh.tgz --strip-components=1 -C /tmp/gmsh \
+    && cmake -S /tmp/gmsh -B /tmp/gmsh/build -DCMAKE_INSTALL_PREFIX=/opt/gmsh \
+        -DENABLE_FLTK=OFF -DENABLE_GRAPHICS=OFF \
+        -DENABLE_OCC=ON -DENABLE_MED=ON -DENABLE_HXT=ON -DENABLE_BUILD_DYNAMIC=ON \
+        -DMED_LIB="${MED_DIR}lib/libmedC.so" -DMED_INC="${MED_DIR}include" \
+        -DHDF5_ROOT="${HDF5_DIR}" \
+        -DCMAKE_INSTALL_RPATH="${MED_DIR}lib;${HDF5_DIR}lib" \
+    && cmake --build /tmp/gmsh/build -j "$(nproc)" --target install \
+    && rm -rf /tmp/gmsh /tmp/gmsh.tgz
+
 # Stamp the prerequisites env profile into a stable location for the runtime stage.
 RUN cp "$(ls /opt/aster/prerequisites/${PREREQ_VERSION}/${ARCH}/*_std.sh | head -1)" \
        /opt/aster/prerequisites/env_std.sh
@@ -108,12 +132,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libbz2-1.0 liblzma5 \
         zlib1g libxml2 libtirpc3 tk \
         libboost-python1.74.0 libboost-filesystem1.74.0 libboost-regex1.74.0 \
+        libocct-foundation-7.6 libocct-modeling-data-7.6 \
+        libocct-modeling-algorithms-7.6 libocct-data-exchange-7.6 \
+        libocct-ocaf-7.6 libocct-visualization-7.6 \
+        libfreeimage3 libtbb12 libgmp10 \
         locales bash less procps \
     && sed -i 's/# en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen && locale-gen \
     && rm -rf /var/lib/apt/lists/*
 ENV LANG=en_US.UTF-8
 
 COPY --from=build /opt/aster /opt/aster
+COPY --from=build /opt/gmsh /opt/gmsh
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # Also auto-source the environment for interactive login shells (e.g. exec'ing
@@ -122,7 +151,7 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
     && printf '%s\n' \
       '# code_aster environment' \
       '. /opt/aster/prerequisites/env_std.sh 2>/dev/null || true' \
-      'export PATH=/opt/aster/install/seq/bin:$PATH' \
+      'export PATH=/opt/aster/install/seq/bin:/opt/gmsh/bin:$PATH' \
       > /etc/profile.d/aster.sh
 
 # Non-root user.

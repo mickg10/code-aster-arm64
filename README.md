@@ -119,18 +119,35 @@ To verify the resulting image:
 
 - code_aster sequential install under `/opt/aster/install/seq`
 - `run_aster`, `as_run`, `astk` on `PATH`
+- **gmsh** (native arm64, with MED + OpenCASCADE) under `/opt/gmsh`, on `PATH`
 - Prerequisites under `/opt/aster/prerequisites/20251026/gcc-openblas-seq`
 - Runs as non-root user `aster` (home `/home/aster`)
-- Environment auto-sourced via `/etc/profile.d/aster.sh`
+- Environment auto-sourced via the entrypoint and `/etc/profile.d/aster.sh`
+
+## Meshing with gmsh (built in)
+
+A native-arm64 **gmsh 4.13** is bundled, compiled from source with **MED** and
+**OpenCASCADE** support (Debian's gmsh package has no MED, and there is no arm64
+PyPI wheel). It links the *same* MED/HDF5 libraries the solver reads, so meshes
+are directly compatible — no host tooling needed.
+
+Mesh a CAD/`.geo` model to MED and solve, all in the container:
+
+```bash
+# mesh model.geo -> model.med, then run the study, in one mounted workdir
+docker run --rm -v "$PWD:/work" -w /work code-aster-arm64 \
+  bash -lc 'gmsh -3 model.geo -o model.med -format med && run_aster study.export'
+```
+
+Read it in the study with `LIRE_MAILLAGE(FORMAT="MED", UNITE=20)` and define
+gmsh **Physical Groups** so they become code_aster `GROUP_MA` / `GROUP_NO`.
+gmsh's native `.msh` (v2) is also readable via `FORMAT="GMSH"`.
 
 ## Notes / scope
 
 - **Sequential only.** PETSc, ParMETIS, ScaLAPACK and MPI are intentionally
   omitted (not needed for the sequential MUMPS solver). An MPI variant could be
   added later.
-- **gmsh** is omitted — upstream ships an x86-64-only gmsh binary in the
-  prerequisites bundle, which is not usable on arm64. Mesh with Salome/gmsh on
-  the host and import the `.med`/`.mmed` mesh.
 - This is a community native-arm64 build, not an official EDF release.
 
 ## Licensing
