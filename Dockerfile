@@ -67,6 +67,10 @@ RUN sed -i '/^make -j /i sed -i "s/-mcmodel=medium//g" src/Makefile.inc' src/mis
 # literals that then trip -Wnarrowing. Force signed char (x86 semantics).
 RUN sed -i '/^cmake \.\. \\$/a\    -DCMAKE_CXX_FLAGS="-fsigned-char" \\' src/medcoupling.sh
 
+# gmsh is dropped from PRODUCTS (x86-only binary), so the env-file generator
+# must not require it either — remove gmsh from the generated environment.
+RUN sed -i '/coll.add("GMSH"/d' utils/generate_env.py
+
 RUN export PRODUCTS="hdf5 med metis parmetis mfront mgis homard scotch scalapack mumps petsc miss3d medcoupling ecrevisse mpi4py grace asrun" \
     && export FCFLAGS="-fallow-argument-mismatch" FFLAGS="-fallow-argument-mismatch" \
     && ./builder.sh --root=/opt/aster/prerequisites --gpl --mpi=seq --install
